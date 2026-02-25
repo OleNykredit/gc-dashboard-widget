@@ -22,7 +22,7 @@ window.purecloud = window.purecloud || {};
 window.purecloud.onEmbeddedClientReady = function (env) {
     const token = env.pcEnvironment.authToken;
 
-    fetch("https://api.mypurecloud.com/api/v2/flows/datatables/NYK_DashboardMessages/rows/todaysmsg", {
+    fetch("https://api.mypurecloud.com/api/v2/flows/datatables/{aa4ac54e-56ad-4bca-921c-f33e691d6f44}/rows/TodaysMessage", {
         headers: {
             "Authorization": "Bearer " + token
         }
