@@ -1,1 +1,42 @@
-Hello world 26
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Message</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    color: #ffffff;
+    background-color: transparent;
+    font-size: 42px;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+<div id="message">Indlæser besked…</div>
+
+<script>
+// Hent access token fra Genesys Cloud widget environment
+window.purecloud = window.purecloud || {};
+window.purecloud.onEmbeddedClientReady = function (env) {
+    const token = env.pcEnvironment.authToken;
+
+    fetch("https://api.mypurecloud.com/api/v2/flows/datatables/NYK_DashboardMessages/rows/todaysmsg", {
+        headers: {
+            "Authorization": "Bearer " + token
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById("message").innerText = data.values.Message;
+    })
+    .catch(err => {
+        document.getElementById("message").innerText = "Kunne ikke hente besked.";
+    });
+};
+</script>
+
+<script src="https://apps.mypurecloud.com/widgets/9.0.0/purecloud-widgets.js"></script>
+</body>
+</html>
