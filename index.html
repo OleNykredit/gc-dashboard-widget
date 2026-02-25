@@ -1,42 +1,142 @@
 <!DOCTYPE html>
-<html>
+<html lang="da">
 <head>
-<meta charset="UTF-8">
-<title>Dashboard Message</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    color: #ffffff;
-    background-color: transparent;
-    font-size: 42px;
-    padding: 20px;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>Dashboard Message</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --fg: #ffffff;
+      --bg: transparent; /* dashboardbaggrund */
+      --error: #ffb3b3;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 24px;
+      text-align: center;
+    }
+    .msg {
+      font-size: 42px;
+      line-height: 1.2;
+      font-weight: 600;
+      word-break: break-word;
+    }
+    .sub {
+      margin-top: 12px;
+      font-size: 16px;
+      opacity: 0.8;
+    }
+    .error {
+      background: var(--error);
+      color: #000;
+      padding: 10px 12px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 12px;
+      font-size: 16px;
+    }
+  </style>
 </head>
 <body>
-<div id="message">Indlæser besked…</div>
+  <div class="wrap">
+    <div>
+      <div id="message" class="msg">Indlæser besked …</div>
+      <div id="subtitle" class="sub"></div>
+      <div id="error" class="error" style="display:none;"></div>
+    </div>
+  </div>
 
-<script>
-// Hent access token fra Genesys Cloud widget environment
-window.purecloud = window.purecloud || {};
-window.purecloud.onEmbeddedClientReady = function (env) {
-    const token = env.pcEnvironment.authToken;
+  <!-- 1) GENESYS WIDGETS SCRIPT — region-specifikt til DE -->
+  <script src="https://apps.mypurecloud.de/widgets/9.0.0/purecloud-widgets.js"></script>
 
-    fetch("https://api.mypurecloud.de/api/v2/flows/datatables/aa4ac54e-56ad-4bca-921c-f33e691d6f44/rows/TodaysMessage", {
-        headers: {
-            "Authorization": "Bearer " + token
+  <script>
+    (function () {
+      // === KONFIGURATION: Ret kun disse tre, hvis nødvendigt ===
+      const REGION = 'mypurecloud.de'; // din region
+      const DATATABLE_ID = 'aa4ac54e-56ad-4bca-921c-f33e691d6f44'; // dit DataTableId (GUID)
+      const ROW_ID = 'Privat'; // din Key (rowId) - case-sensitive
+      const COLUMN_NAME = 'Message'; // kolonnenavnet i din Data Table
+
+      const $msg = document.getElementById('message');
+      const $sub = document.getElementById('subtitle');
+      const $err = document.getElementById('error');
+
+      // Hjælpefunktion til at vise fejl på skærmen og i konsollen
+      function showError(title, detail) {
+        console.error('[Widget error]', title, detail || '');
+        $err.style.display = 'inline-block';
+        $err.textContent = `Fejl: ${title}${detail ? ' — ' + detail : ''}`;
+      }
+
+      // 2) Denne widget kræver Genesys embedding (token). Hvis ikke, giv tydelig besked.
+      if (!window.purecloud || !window.purecloud.onEmbeddedClientReady) {
+        $msg.textContent = 'Vent venligst — denne widget skal køre inde i et Genesys Dashboard.';
+        $sub.textContent = 'Åbn den via Performance → Dashboards → Web Content (ikke direkte i browseren).';
+        // Ingen showError her — dette er forventet uden for Genesys.
+        return;
+      }
+
+      // 3) Når vi er inde i Genesys, får vi et authToken fra miljøet
+      window.purecloud.onEmbeddedClientReady(function (env) {
+        try {
+          const token = env && env.pcEnvironment && env.pcEnvironment.authToken;
+          if (!token) {
+            showError('Intet token modtaget fra Genesys embedding.');
+            return;
+          }
+
+          const apiBase = `https://api.${REGION}`;
+          const url = `${apiBase}/api/v2/flows/datatables/${encodeURIComponent(DATATABLE_ID)}/rows/${encodeURIComponent(ROW_ID)}`;
+
+          // Hent beskeden fra Data Table
+          fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': 'Bearer ' + token
+            }
+          })
+          .then(async (res) => {
+            if (!res.ok) {
+              const body = await res.text().catch(() => '');
+              throw new Error(`HTTP ${res.status} ${res.statusText} — ${body}`);
+            }
+            return res.json();
+          })
+          .then((data) => {
+            // Forventet struktur: { rowId: "...", values: { Message: "..." } }
+            const values = (data && data.values) || {};
+            const text = values[COLUMN_NAME];
+
+            if (typeof text !== 'string') {
+              showError('Kolonnen blev ikke fundet', `Forventede kolonnen "${COLUMN_NAME}".`);
+              $msg.textContent = '—';
+              return;
+            }
+
+            $msg.textContent = text && text.trim() ? text : '—';
+            $sub.textContent = ''; // evt. plads til tidsstempel el.lign.
+          })
+          .catch((err) => {
+            showError('Kunne ikke hente besked fra Data Table', err.message || String(err));
+            $msg.textContent = '—';
+          });
+
+        } catch (e) {
+          showError('Uventet fejl', e.message || String(e));
         }
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById("message").innerText = data.values.Message;
-    })
-    .catch(err => {
-        document.getElementById("message").innerText = "Kunne ikke hente besked.";
-    });
-};
-</script>
-
-<script src="https://apps.mypurecloud.com/widgets/9.0.0/purecloud-widgets.js"></script>
+      });
+    })();
+  </script>
 </body>
 </html>
